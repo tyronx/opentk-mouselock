@@ -3,6 +3,7 @@ using OpenTK;
 using OpenTK.Input;
 using OpenTK.Graphics;
 using OpenTK.Graphics.OpenGL;
+using Vintagestory.API.MathTools;
 
 namespace ImmediateMode
 {
@@ -20,8 +21,15 @@ namespace ImmediateMode
         float angleX;
         float angleY;
 
-        bool UseVintageStoryMouseGrabbing = false;
+        bool UseVintageStoryMouseGrabbing = true;
 
+
+        [STAThread]
+        static void Main()
+        {
+            var program = new Program();
+            program.Run();
+        }
 
         protected override void OnLoad(EventArgs e)
         {
@@ -55,10 +63,6 @@ namespace ImmediateMode
                 return;
             }
 
-            if (UseVintageStoryMouseGrabbing)
-            {
-                UpdateMousePosition();
-            }
         }
 
         protected override void OnMouseMove(MouseMoveEventArgs e)
@@ -89,46 +93,10 @@ namespace ImmediateMode
         protected override void OnMouseDown(MouseButtonEventArgs e)
         {
             base.OnMouseDown(e);
+
             CursorGrabbed = !CursorGrabbed;
             CursorVisible = !CursorVisible;
         }
-
-
-
-
-        OpenTK.Input.MouseState currentMouseState, previousMouseState;
-        int mouseX, mouseY;
-        bool ignoreMouseMoveEvent = false;
-
-        void UpdateMousePosition()
-        {
-            currentMouseState = Mouse.GetState();
-
-            if (!Focused)
-            {
-                return;
-            }
-
-            if (currentMouseState != previousMouseState)
-            {
-                int xdelta = currentMouseState.X - previousMouseState.X;
-                int ydelta = currentMouseState.Y - previousMouseState.Y;
-                previousMouseState = currentMouseState;
-
-                angleX += rotation_speed * (float)ydelta;
-                angleY += rotation_speed * (float)xdelta;
-
-
-                if (CursorGrabbed)
-                {
-                    int centerx = this.Bounds.Left + (Bounds.Width / 2);
-                    int centery = Bounds.Top + (Bounds.Height / 2);
-                    ignoreMouseMoveEvent = true;
-                    Mouse.SetPosition(centerx, centery);
-                }
-            }
-        }
-
 
 
 
@@ -137,6 +105,12 @@ namespace ImmediateMode
         protected override void OnRenderFrame(FrameEventArgs e)
         {
             base.OnRenderFrame(e);
+
+            if (UseVintageStoryMouseGrabbing)
+            {
+                UpdateMousePosition();
+                MainRenderLoopVS((float)e.Time);
+            }
 
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
@@ -189,11 +163,80 @@ namespace ImmediateMode
             SwapBuffers();
         }
 
-        [STAThread]
-        static void Main()
+
+
+        #region Vintage Story mouse move code
+
+
+        OpenTK.Input.MouseState currentMouseState, previousMouseState;
+        int mouseX, mouseY;
+        bool ignoreMouseMoveEvent = false;
+        float mouseSensivity = 50;
+        float mouseSmoothing = 30;
+        bool invertMouseYAxis = false;
+
+        internal double MouseDeltaX;
+        internal double MouseDeltaY;
+        internal double DelayedMouseDeltaX;
+        internal double DelayedMouseDeltaY;
+        float rotationspeed = 0.15f * 60;
+
+        void UpdateMousePosition()
         {
-            var program = new Program();
-            program.Run();
+            currentMouseState = Mouse.GetState();
+
+            if (!Focused)
+            {
+                return;
+            }
+
+            if (currentMouseState != previousMouseState)
+            {
+                int xdelta = currentMouseState.X - previousMouseState.X;
+                int ydelta = currentMouseState.Y - previousMouseState.Y;
+
+                mouseMoveEventVS(mouseX, mouseY, xdelta, ydelta);
+                
+
+                previousMouseState = currentMouseState;
+
+                if (CursorGrabbed)
+                {
+                    int centerx = this.Bounds.Left + (Bounds.Width / 2);
+                    int centery = this.Bounds.Top + (Bounds.Height / 2);
+                    ignoreMouseMoveEvent = true;
+                    Mouse.SetPosition(centerx, centery);
+                }
+            }
         }
+
+
+        private void mouseMoveEventVS(int mouseX, int mouseY, int xdelta, int ydelta)
+        {
+            MouseDeltaX += xdelta * mouseSensivity / 100.0;
+            MouseDeltaY += ydelta * mouseSensivity / 100.0;
+        }
+
+        private void MainRenderLoopVS(float dt)
+        {
+            double fpsFac = GameMath.Clamp(dt / (1 / 75f), 0, 3);
+            double fac = GameMath.Clamp(mouseSmoothing / 100f * fpsFac, 0.01f, 1);
+            Console.WriteLine(fac);
+            double velX = fac * (MouseDeltaX - DelayedMouseDeltaX);
+            double velY = fac * (MouseDeltaY - DelayedMouseDeltaY);
+
+            DelayedMouseDeltaX += velX;
+            DelayedMouseDeltaY += velY;
+
+            if (Focused && CursorGrabbed)
+            {
+                angleY += (float)(velX * rotationspeed * 1f / 75);
+                angleX += (float)(velY * rotationspeed * 1f / 75 * (invertMouseYAxis ? -1 : 1));
+
+            }
+        }
+
+        #endregion
+
     }
 }

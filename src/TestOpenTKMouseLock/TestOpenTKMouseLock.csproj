@@ -39,6 +39,7 @@
     <Reference Include="System.Drawing" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="GameMath.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
   <ItemGroup>
